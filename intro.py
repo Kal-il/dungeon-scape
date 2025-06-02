@@ -17,14 +17,14 @@ hero = Actor("hero_walk1", (TILE_SIZE // 2, TILE_SIZE // 2))
 hero.grid_x = 0
 hero.grid_y = 0
 hero.frame = 0
-hero.animation_counter = 0
 hero.facing = "right"
 
-goal = Actor("drawknife1", (WIDTH - TILE_SIZE//2, HEIGHT - TILE_SIZE//2))
+goal = Actor("portal", (WIDTH - TILE_SIZE//2, HEIGHT - TILE_SIZE//2))
 goal.grid_x = GRID_WIDTH - 1
 goal.grid_y = GRID_HEIGHT - 1
 
 enemies = []
+game_state = "menu"  # menu, playing, victory
 
 class Enemy:
     def __init__(self, grid_x, grid_y):
@@ -37,7 +37,7 @@ class Enemy:
 
     def update(self):
         self.counter += 1
-        if self.counter % 30 == 0:
+        if self.counter % 60 == 0:  # vilões mais lentos
             dx = hero.grid_x - self.grid_x
             dy = hero.grid_y - self.grid_y
             if abs(dx) + abs(dy) <= 4:
@@ -54,16 +54,12 @@ class Enemy:
 
         self.actor.x = self.grid_x * TILE_SIZE + TILE_SIZE // 2
         self.actor.y = self.grid_y * TILE_SIZE + TILE_SIZE // 2
-
         self.facing = "left" if hero.grid_x < self.grid_x else "right"
         self.animate()
 
     def animate(self):
         self.frame = (self.frame + 1) % 2
-        if self.facing == "right":
-            self.actor.image = f"enemy_walk{self.frame+1}"
-        else:
-            self.actor.image = f"enemy_walk{self.frame+1}_copia"
+        self.actor.image = f"enemy_walk{self.frame+1}" if self.facing == "right" else f"enemy_walk{self.frame+1}_copia"
 
 def spawn_enemies():
     enemies.clear()
@@ -77,82 +73,70 @@ move_dx = 0
 move_dy = 0
 
 def update():
-    global moving, move_dx, move_dy, menu_mode
-    if not menu_mode:
-        if not moving:
-            if keyboard.left and hero.grid_x > 0:
-                move_dx, move_dy = -1, 0
-                hero.facing = "left"
-                moving = True
-            elif keyboard.right and hero.grid_x < GRID_WIDTH - 1:
-                move_dx, move_dy = 1, 0
-                hero.facing = "right"
-                moving = True
-            elif keyboard.up and hero.grid_y > 0:
-                move_dx, move_dy = 0, -1
-                moving = True
-            elif keyboard.down and hero.grid_y < GRID_HEIGHT - 1:
-                move_dx, move_dy = 0, 1
-                moving = True
-            if moving and sounds_enabled:
-                sounds.footstep00.play()
+    global moving, move_dx, move_dy, game_state
+    if game_state != "playing":
+        return
 
-        if moving:
-            hero.frame = (hero.frame + 1) % 2
-            if hero.facing == "right":
-                hero.image = f"hero_walk{hero.frame+1}"
-            else:
-                hero.image = f"hero_walk{hero.frame+1}_copia"
-            hero.x += move_dx * 4
-            hero.y += move_dy * 4
-            if abs(hero.x - (hero.grid_x + move_dx) * TILE_SIZE - TILE_SIZE // 2) < 5 and \
-               abs(hero.y - (hero.grid_y + move_dy) * TILE_SIZE - TILE_SIZE // 2) < 5:
-                hero.grid_x += move_dx
-                hero.grid_y += move_dy
-                hero.x = hero.grid_x * TILE_SIZE + TILE_SIZE // 2
-                hero.y = hero.grid_y * TILE_SIZE + TILE_SIZE // 2
-                moving = False
+    if not moving:
+        if keyboard.left and hero.grid_x > 0:
+            move_dx, move_dy = -1, 0
+            hero.facing = "left"
+            moving = True
+        elif keyboard.right and hero.grid_x < GRID_WIDTH - 1:
+            move_dx, move_dy = 1, 0
+            hero.facing = "right"
+            moving = True
+        elif keyboard.up and hero.grid_y > 0:
+            move_dx, move_dy = 0, -1
+            moving = True
+        elif keyboard.down and hero.grid_y < GRID_HEIGHT - 1:
+            move_dx, move_dy = 0, 1
+            moving = True
+        if moving and sounds_enabled:
+            sounds.footstep00.play()
 
-        for e in enemies:
-            e.update()
-
-        # Verificar colisão com inimigo
-        for e in enemies:
-            if hero.grid_x == e.grid_x and hero.grid_y == e.grid_y:
-                menu_mode = True
-                hero.grid_x, hero.grid_y = 0, 0
-                hero.x = hero.grid_x * TILE_SIZE + TILE_SIZE // 2
-                hero.y = hero.grid_y * TILE_SIZE + TILE_SIZE // 2
-                music.stop()
-
-        # Verificar chegada ao objetivo
-        if hero.grid_x == goal.grid_x and hero.grid_y == goal.grid_y:
-            menu_mode = True
-            hero.grid_x, hero.grid_y = 0, 0
+    if moving:
+        hero.frame = (hero.frame + 1) % 2
+        hero.image = f"hero_walk{hero.frame+1}" if hero.facing == "right" else f"hero_walk{hero.frame+1}_copia"
+        hero.x += move_dx * 4
+        hero.y += move_dy * 4
+        if abs(hero.x - (hero.grid_x + move_dx) * TILE_SIZE - TILE_SIZE // 2) < 5 and \
+           abs(hero.y - (hero.grid_y + move_dy) * TILE_SIZE - TILE_SIZE // 2) < 5:
+            hero.grid_x += move_dx
+            hero.grid_y += move_dy
             hero.x = hero.grid_x * TILE_SIZE + TILE_SIZE // 2
             hero.y = hero.grid_y * TILE_SIZE + TILE_SIZE // 2
-            print("YOU WIN!")
+            moving = False
+
+    for e in enemies:
+        e.update()
+        if hero.grid_x == e.grid_x and hero.grid_y == e.grid_y:
+            game_state = "menu"
             music.stop()
+
+    if hero.grid_x == goal.grid_x and hero.grid_y == goal.grid_y:
+        game_state = "victory"
+        music.stop()
 
 def draw_background():
     for y in range(GRID_HEIGHT):
         for x in range(GRID_WIDTH):
             screen.blit("bg", (x * TILE_SIZE, y * TILE_SIZE))
 
-def draw_menu():
-    screen.clear()
-    screen.fill((0, 0, 50))
-    screen.draw.text("Main Menu", center=(WIDTH//2, 80), fontsize=50, color="white")
-    screen.draw.filled_rect(buttons[0], "green")
-    screen.draw.text("Start Game", center=buttons[0].center, color="white")
-    screen.draw.filled_rect(buttons[1], "blue")
-    screen.draw.text("Toggle Sound", center=buttons[1].center, color="white")
-    screen.draw.filled_rect(buttons[2], "red")
-    screen.draw.text("Quit", center=buttons[2].center, color="white")
-
 def draw():
-    if menu_mode:
-        draw_menu()
+    screen.clear()
+    if game_state == "menu":
+        screen.fill((0, 0, 50))
+        screen.draw.text("Main Menu", center=(WIDTH//2, 80), fontsize=50, color="white")
+        for i, button in enumerate(buttons):
+            color = ["green", "blue", "red"][i]
+            label = ["Start Game", "Toggle Sound", "Quit"][i]
+            screen.draw.filled_rect(button, color)
+            screen.draw.text(label, center=button.center, color="white")
+    elif game_state == "victory":
+        screen.blit("victory", (0, 0))
+        screen.draw.filled_rect(victory_button, "green")
+        screen.draw.text("Back to Menu", center=victory_button.center, color="white")
     else:
         draw_background()
         goal.draw()
@@ -160,14 +144,16 @@ def draw():
         for e in enemies:
             e.actor.draw()
 
-menu_mode = True
 buttons = [Rect(220, 150, 200, 50), Rect(220, 220, 200, 50), Rect(220, 290, 200, 50)]
+victory_button = Rect(WIDTH//2 - 100, HEIGHT - 100, 200, 50)
 
 def on_mouse_down(pos):
-    global menu_mode, sounds_enabled
-    if menu_mode:
+    global game_state, sounds_enabled
+    if game_state == "menu":
         if buttons[0].collidepoint(pos):
-            menu_mode = False
+            game_state = "playing"
+            hero.grid_x = hero.grid_y = 0
+            hero.x = hero.y = TILE_SIZE // 2
             music.play("theme")
             spawn_enemies()
         elif buttons[1].collidepoint(pos):
@@ -178,5 +164,7 @@ def on_mouse_down(pos):
                 music.play("theme")
         elif buttons[2].collidepoint(pos):
             exit()
+    elif game_state == "victory" and victory_button.collidepoint(pos):
+        game_state = "menu"
 
 pgzrun.go()
